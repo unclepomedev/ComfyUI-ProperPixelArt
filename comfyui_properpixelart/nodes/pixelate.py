@@ -84,5 +84,5 @@ class ProperPixelArt(io.ComfyNode):
                 transparent_background=transparent_background,
                 config=config,
                 intermediate_dir=intermediate_dir,
-            )
+            ),
         )

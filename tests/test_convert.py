@@ -14,7 +14,10 @@ from comfyui_properpixelart.core.convert import (
 
 def pixel_art(channels):
     cells = np.random.default_rng(42).integers(
-        0, 256, size=(32, 32, channels), dtype=np.uint8
+        0,
+        256,
+        size=(32, 32, channels),
+        dtype=np.uint8,
     )
     return Image.fromarray(cells).resize((512, 512), Image.Resampling.NEAREST)
 
@@ -26,7 +29,12 @@ def pixel_art(channels):
 )
 @pytest.mark.parametrize("with_config", [False, True])
 def test_equivalence(
-    channels, num_colors, pixel_width, scale_result, transparent_background, with_config
+    channels,
+    num_colors,
+    pixel_width,
+    scale_result,
+    transparent_background,
+    with_config,
 ):
     source = pixel_art(channels)
     image = pil_to_tensor(source)
@@ -57,7 +65,8 @@ def test_equivalence(
     assert actual.shape == (1, expected.height, expected.width, 4)
     assert 0 <= actual.min() <= actual.max() <= 1
     np.testing.assert_array_equal(
-        np.asarray(tensor_to_pil(actual)), np.asarray(expected)
+        np.asarray(tensor_to_pil(actual)),
+        np.asarray(expected),
     )
 
 
@@ -76,7 +85,8 @@ def test_roundtrip(channels, dtype):
 def test_rounding_and_clipping():
     image = torch.tensor([[[[-0.1, 0.5, 1.1], [0.49, 0.51, 0.0]]]])
     np.testing.assert_array_equal(
-        np.asarray(tensor_to_pil(image)), [[[0, 128, 255], [125, 130, 0]]]
+        np.asarray(tensor_to_pil(image)),
+        [[[0, 128, 255], [125, 130, 0]]],
     )
 
 
@@ -101,7 +111,13 @@ def test_intermediate_dir(tmp_path):
     actual_dir.mkdir()
     expected_dir.mkdir()
     actual = pixelate_image(
-        pil_to_tensor(source), 8, 1, 4, 1, False, intermediate_dir=str(actual_dir)
+        pil_to_tensor(source),
+        8,
+        1,
+        4,
+        1,
+        False,
+        intermediate_dir=str(actual_dir),
     )
     expected = pixelate(
         source,
@@ -113,7 +129,8 @@ def test_intermediate_dir(tmp_path):
         intermediate_dir=expected_dir,
     )
     np.testing.assert_array_equal(
-        np.asarray(tensor_to_pil(actual)), np.asarray(expected)
+        np.asarray(tensor_to_pil(actual)),
+        np.asarray(expected),
     )
     assert {p.name for p in actual_dir.iterdir()} == {
         p.name for p in expected_dir.iterdir()
@@ -152,6 +169,8 @@ def test_missing_intermediate_dir_propagates(tmp_path):
         pixelate(source, intermediate_dir=missing_dir, **kwargs)
     with pytest.raises(type(expected.value)) as actual:
         pixelate_image(
-            pil_to_tensor(source), intermediate_dir=str(missing_dir), **kwargs
+            pil_to_tensor(source),
+            intermediate_dir=str(missing_dir),
+            **kwargs,
         )
     assert str(actual.value) == str(expected.value)
