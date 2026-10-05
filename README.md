@@ -1,6 +1,6 @@
 # ComfyUI-ProperPixelArt
 
-Unofficial, thin ComfyUI wrapper for [proper-pixel-art](https://github.com/KennethJAllen/proper-pixel-art). Follows upstream behavior.
+Unofficial ComfyUI wrapper for [proper-pixel-art](https://github.com/KennethJAllen/proper-pixel-art): "Fixes AI pixel art images, video, or sprite web uploads". Follows upstream behavior.
 
 ## Install
 
