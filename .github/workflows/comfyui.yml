@@ -3,6 +3,10 @@ name: ComfyUI compatibility
 on:
   workflow_call:
     inputs:
+      os:
+        description: "JSON array of runner operating systems"
+        required: true
+        type: string
       comfyui_ref:
         description: "ComfyUI ref (empty uses the pinned release)"
         required: false
@@ -14,7 +18,11 @@ permissions:
 
 jobs:
   load-and-execute:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.os) }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - name: Checkout pack
@@ -28,10 +36,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: requirements.txt
 
-      - name: Install just
-        run: sudo apt-get update && sudo apt-get install -y just
-
       - name: Test loading and execution without a server
+        shell: bash
         env:
           COMFYUI_REF: ${{ inputs.comfyui_ref }}
-        run: just comfyui-test ${COMFYUI_REF:+"$COMFYUI_REF"}
+        run: uvx --from rust-just just comfyui-test ${COMFYUI_REF:+"$COMFYUI_REF"}

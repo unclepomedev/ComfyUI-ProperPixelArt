@@ -4,7 +4,11 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
+import torch
+from PIL import Image
+from proper_pixel_art.config import PixelateConfig
 
 if "REQUIRE_COMFYUI" in os.environ:
     import comfy_api.latest as comfy_api
@@ -39,8 +43,6 @@ def node_list():
 
 
 def test_schema(node_list):
-    from proper_pixel_art.config import PixelateConfig
-
     defaults = PixelateConfig()
     node_ids = set()
     for node in node_list:
@@ -61,10 +63,6 @@ def test_schema(node_list):
 
 
 def test_execute(node_list):
-    import numpy as np
-    import torch
-    from PIL import Image
-
     cells = np.random.default_rng(42).integers(0, 256, size=(32, 32, 3), dtype=np.uint8)
     source = Image.fromarray(cells).resize((512, 512), Image.Resampling.NEAREST)
     image = torch.from_numpy(np.array(source, dtype=np.float32) / 255).unsqueeze(0)

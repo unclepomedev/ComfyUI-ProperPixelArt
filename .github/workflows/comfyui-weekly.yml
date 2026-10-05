@@ -11,4 +11,5 @@ jobs:
   compatibility:
     uses: ./.github/workflows/comfyui.yml
     with:
+      os: '["ubuntu-latest"]'
       comfyui_ref: master
