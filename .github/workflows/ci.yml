@@ -16,7 +16,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.2.0
 
-      - name: Install dev depencies
+      - name: Install dev dependencies
         run: uv sync --dev
 
       - name: List
