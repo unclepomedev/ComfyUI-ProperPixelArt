@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-properpixelart"
 version = "0.0.1"
-description = "ComfyUI custom nodes wrapping proper-pixel-art."
+description = "ComfyUI custom nodes wrapping proper-pixel-art \"Fixes AI pixel art images, video, or sprite web uploads\"."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
