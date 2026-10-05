@@ -1,0 +1,14 @@
+name: ComfyUI master compatibility
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    uses: ./.github/workflows/comfyui.yml
+    with:
+      comfyui_ref: master
