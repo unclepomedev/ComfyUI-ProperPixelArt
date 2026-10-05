@@ -23,4 +23,5 @@ jobs:
   compatibility:
     uses: ./.github/workflows/comfyui.yml
     with:
+      os: '["ubuntu-latest", "windows-latest", "macos-latest"]'
       comfyui_ref: ${{ inputs.comfyui_ref }}
