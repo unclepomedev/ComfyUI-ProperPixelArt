@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-properpixelart"
-version = "0.1.0"
+version = "0.0.1"
 description = "ComfyUI custom nodes wrapping proper-pixel-art."
 readme = "README.md"
 license = "MIT"
@@ -12,6 +12,16 @@ requires-python = ">=3.12"
 dependencies = [
     "proper-pixel-art>=1.7.2,<2.0.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/unclepomedev/ComfyUI-ProperPixelArt"
+Documentation = "https://github.com/unclepomedev/ComfyUI-ProperPixelArt"
+"Bug Tracker" = "https://github.com/unclepomedev/ComfyUI-ProperPixelArt/issues"
+
+[tool.comfy]
+PublisherId = "unclepomedev"
+DisplayName = "comfyui-properpixelart"
+requires-comfyui = ">=0.38.2"
 
 [dependency-groups]
 dev = [
