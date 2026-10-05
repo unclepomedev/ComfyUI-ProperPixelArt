@@ -21,3 +21,5 @@ comfyui-test ref="v0.38.2":
     uv venv --allow-existing --python {{ PYTHON_VERSION }} .cache/comfyui-venv
     uv pip install --python .cache/comfyui-venv --torch-backend cpu -r .cache/ComfyUI/requirements.txt -r requirements.txt pytest
     uv run --no-project --python .cache/comfyui-venv python -m pytest tests/comfyui -v
+
+test-all: test comfyui-test

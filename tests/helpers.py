@@ -1,5 +1,7 @@
 from dataclasses import asdict
 
+import numpy as np
+from PIL import Image
 from proper_pixel_art.config import PixelateConfig
 from proper_pixel_art.web import build_config as upstream_build_config
 
@@ -42,3 +44,17 @@ def upstream_config(inputs):
     main.pop("mesh")
     main.pop("colors")
     return upstream_build_config(**main, **inputs)
+
+
+def create_gif(path):
+    cells = np.random.default_rng(42).integers(0, 256, size=(32, 32, 3), dtype=np.uint8)
+    frames = [
+        Image.fromarray(np.roll(cells, shift, axis=0)).resize(
+            (512, 512), Image.Resampling.NEAREST
+        )
+        for shift in range(2)
+    ]
+    frames[0].save(
+        path, save_all=True, append_images=frames[1:], duration=[80, 160], loop=0
+    )
+    return path
