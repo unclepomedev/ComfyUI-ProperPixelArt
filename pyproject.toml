@@ -28,3 +28,8 @@ add-bounds = "major"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--import-mode=importlib --confcutdir=tests"
+
+[tool.ruff.lint.per-file-ignores]
+# hyphens.
+"__init__.py" = ["N999"]
+"comfyui_properpixelart/__init__.py" = ["N999"]
