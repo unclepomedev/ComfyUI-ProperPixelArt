@@ -1,0 +1,35 @@
+name: ComfyUI compatibility
+
+on:
+  workflow_call:
+    inputs:
+      comfyui_ref:
+        description: "ComfyUI ref (empty uses the pinned release)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  load-and-execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements.txt
+
+      - name: Install just
+        run: sudo apt-get update && sudo apt-get install -y just
+
+      - name: Test loading and execution without a server
+        env:
+          COMFYUI_REF: ${{ inputs.comfyui_ref }}
+        run: just comfyui-test ${COMFYUI_REF:+"$COMFYUI_REF"}

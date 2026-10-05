@@ -1,0 +1,26 @@
+name: ComfyUI release compatibility
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      comfyui_ref:
+        description: "ComfyUI ref (empty uses the pinned release)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    uses: ./.github/workflows/comfyui.yml
+    with:
+      comfyui_ref: ${{ inputs.comfyui_ref }}
