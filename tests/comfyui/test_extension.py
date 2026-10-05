@@ -10,7 +10,7 @@ import torch
 from PIL import Image
 from proper_pixel_art.config import PixelateConfig
 
-from tests.helpers import MODIFIED_INPUTS, config_inputs, upstream_config
+from tests.helpers import MODIFIED_INPUTS, config_inputs, create_gif, upstream_config
 
 if "REQUIRE_COMFYUI" in os.environ:
     import comfy_api.latest as comfy_api
@@ -51,13 +51,17 @@ def node_list():
     assert set(indexed) == {
         "ComfyUI_ProperPixelArt_Pixelate",
         "ComfyUI_ProperPixelArt_Config",
+        "ComfyUI_ProperPixelArt_Video",
     }
     return indexed
 
 
-def test_schema(node_list):
+@pytest.mark.parametrize(
+    "node_id", ["ComfyUI_ProperPixelArt_Pixelate", "ComfyUI_ProperPixelArt_Video"]
+)
+def test_schema(node_list, node_id):
     defaults = PixelateConfig()
-    schema = node_list["ComfyUI_ProperPixelArt_Pixelate"].GET_SCHEMA()
+    schema = node_list[node_id].GET_SCHEMA()
     inputs = {widget.id: widget for widget in schema.inputs}
     for name in (
         "num_colors",
@@ -149,3 +153,71 @@ def test_config_connection(node_list, image):
     assert_image_output(output)
     assert_image_output(default_output)
     assert not torch.equal(output.result[0], default_output.result[0])
+
+
+def test_video_schema(node_list):
+    schema = node_list["ComfyUI_ProperPixelArt_Video"].GET_SCHEMA()
+    inputs = {widget.id: widget for widget in schema.inputs}
+    image_inputs = {
+        widget.id: widget
+        for widget in node_list["ComfyUI_ProperPixelArt_Pixelate"].GET_SCHEMA().inputs
+    }
+    for name in ("num_colors", "initial_upscale_factor", "pixel_width", "scale_result"):
+        assert inputs[name].min == image_inputs[name].min
+        assert inputs[name].max == image_inputs[name].max
+    assert schema.is_output_node
+    assert inputs["input_path"].default == ""
+    assert inputs["output_format"].options == ["Auto", "mp4", "gif"]
+    assert inputs["output_format"].default == "Auto"
+    assert inputs["num_sample_frames"].default == 8
+    assert inputs["num_sample_frames"].min == 1
+    assert inputs["config"].optional
+    assert inputs["intermediate_dir"].optional
+    assert inputs["intermediate_dir"].default == ""
+    assert len(schema.outputs) == 1
+
+
+@pytest.fixture
+def video_output_directory(tmp_path):
+    folder_paths = sys.modules["folder_paths"]
+    previous = folder_paths.get_output_directory()
+    output = tmp_path / "output"
+    output.mkdir()
+    folder_paths.set_output_directory(str(output))
+    try:
+        yield output
+    finally:
+        folder_paths.set_output_directory(previous)
+
+
+def test_video_execute(node_list, tmp_path, video_output_directory):
+    source = create_gif(tmp_path / "input.gif")
+    node = node_list["ComfyUI_ProperPixelArt_Video"]
+    main_inputs = dict(
+        input_path=str(source),
+        num_colors=0,
+        initial_upscale_factor=1,
+        pixel_width=0,
+        scale_result=1,
+        transparent_background=False,
+    )
+    output = node.execute(
+        **main_inputs,
+        config=node_list["ComfyUI_ProperPixelArt_Config"]
+        .execute(**MODIFIED_INPUTS)
+        .result[0],
+    )
+    assert isinstance(output, comfy_api.io.NodeOutput)
+    assert len(output.result) == 1
+    assert isinstance(output.result[0], str)
+    path = Path(output.result[0])
+    assert path.is_file()
+    assert path.parent == video_output_directory
+    with Image.open(path) as result:
+        assert result.format == "GIF"
+        assert result.n_frames == 2
+        assert result.width > 1 and result.height > 1
+        configured_frame = np.array(result.convert("RGBA"))
+    default_output = node.execute(**main_inputs)
+    with Image.open(default_output.result[0]) as result:
+        assert not np.array_equal(configured_frame, np.array(result.convert("RGBA")))
