@@ -119,3 +119,39 @@ def test_intermediate_dir(tmp_path):
         p.name for p in expected_dir.iterdir()
     }
     assert any(actual_dir.iterdir())
+
+
+def test_invalid_num_colors_propagates():
+    source = pixel_art(4)
+    kwargs = {
+        "num_colors": 300,
+        "initial_upscale_factor": 1,
+        "pixel_width": 16,
+        "scale_result": 1,
+        "transparent_background": False,
+    }
+    with pytest.raises(ValueError) as expected:
+        pixelate(source, **kwargs)
+    with pytest.raises(type(expected.value)) as actual:
+        pixelate_image(pil_to_tensor(source), **kwargs)
+    assert str(actual.value) == str(expected.value)
+
+
+def test_missing_intermediate_dir_propagates(tmp_path):
+    source = pixel_art(4)
+    missing_dir = tmp_path / "missing"
+    assert not missing_dir.exists()
+    kwargs = {
+        "num_colors": 0,
+        "initial_upscale_factor": 1,
+        "pixel_width": 16,
+        "scale_result": 1,
+        "transparent_background": False,
+    }
+    with pytest.raises(FileNotFoundError) as expected:
+        pixelate(source, intermediate_dir=missing_dir, **kwargs)
+    with pytest.raises(type(expected.value)) as actual:
+        pixelate_image(
+            pil_to_tensor(source), intermediate_dir=str(missing_dir), **kwargs
+        )
+    assert str(actual.value) == str(expected.value)
