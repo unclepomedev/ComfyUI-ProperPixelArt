@@ -23,12 +23,22 @@ class ProperPixelArtConfig(io.ComfyNode):
                 io.Int.Input("canny_high", default=mesh.canny_thresholds[1]),
                 io.Int.Input("closure_kernel_size", default=mesh.closure_kernel_size),
                 io.Int.Input("cluster_threshold", default=mesh.cluster_threshold),
-                io.Float.Input("angle_threshold_deg", default=mesh.angle_threshold_deg),
                 io.Float.Input(
-                    "trim_outlier_fraction", default=mesh.trim_outlier_fraction
+                    "angle_threshold_deg",
+                    default=mesh.angle_threshold_deg,
+                    step=1,
+                    round=False,
                 ),
-                io.Float.Input("rho", default=hough.rho),
-                io.Float.Input("theta_deg", default=hough.theta_deg),
+                io.Float.Input(
+                    "trim_outlier_fraction",
+                    default=mesh.trim_outlier_fraction,
+                    step=0.01,
+                    round=False,
+                ),
+                io.Float.Input("rho", default=hough.rho, step=0.1, round=False),
+                io.Float.Input(
+                    "theta_deg", default=hough.theta_deg, step=0.1, round=False
+                ),
                 io.Int.Input("hough_threshold", default=hough.threshold),
                 io.Int.Input("min_line_len", default=hough.min_line_len),
                 io.Int.Input("max_line_gap", default=hough.max_line_gap),
@@ -36,6 +46,8 @@ class ProperPixelArtConfig(io.ComfyNode):
                 io.Float.Input(
                     "transparency_majority_fraction",
                     default=colors.transparency_majority_fraction,
+                    step=0.01,
+                    round=False,
                 ),
                 io.Combo.Input(
                     "quantize_method",
@@ -47,7 +59,7 @@ class ProperPixelArtConfig(io.ComfyNode):
                 io.Int.Input("thumbnail_w", default=colors.thumbnail_size[0]),
                 io.Int.Input("thumbnail_h", default=colors.thumbnail_size[1]),
             ],
-            outputs=[PixelateConfigType.Output()],
+            outputs=[PixelateConfigType.Output(display_name="config")],
         )
 
     @classmethod
