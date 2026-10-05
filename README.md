@@ -15,4 +15,4 @@ Clone into `custom_nodes/` and run `pip install -r requirements.txt`.
 ## Notes
 
 - `input_path` and `intermediate_dir` are server-side paths with no restriction; use only with trusted workflow users.
-- Video/GIF: the output directory name must not contain a dot (upstream limitation).
+- Video/GIF: the output directory name must not contain a dot.
