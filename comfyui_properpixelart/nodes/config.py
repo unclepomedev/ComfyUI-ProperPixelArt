@@ -42,7 +42,7 @@ class ProperPixelArtConfig(io.ComfyNode):
                     options=["MEDIANCUT", "MAXCOVERAGE", "FASTOCTREE"],
                     default=colors.quantize_method,
                 ),
-                io.Int.Input("bin_size", default=colors.bin_size),
+                io.Int.Input("bin_size", default=colors.bin_size, min=1),
                 io.Int.Input("top_colors_limit", default=colors.top_colors_limit),
                 io.Int.Input("thumbnail_w", default=colors.thumbnail_size[0]),
                 io.Int.Input("thumbnail_h", default=colors.thumbnail_size[1]),

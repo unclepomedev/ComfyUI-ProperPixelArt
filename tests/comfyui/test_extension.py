@@ -76,6 +76,7 @@ def test_config_schema(node_list):
     assert set(inputs) == set(expected)
     for name, value in expected.items():
         assert inputs[name].default == value
+    assert inputs["bin_size"].min == 1
     assert inputs["quantize_method"].options == [
         "MEDIANCUT",
         "MAXCOVERAGE",
@@ -132,15 +133,19 @@ def test_execute(node_list, image):
 
 def test_config_connection(node_list, image):
     inputs = config_inputs(PixelateConfig())
-    inputs.update(canny_low=40, canny_high=180, thumbnail_w=128, bin_size=40)
+    inputs.update(quantize_method="FASTOCTREE")
     config = node_list["ComfyUI_ProperPixelArt_Config"].execute(**inputs).result[0]
-    output = node_list["ComfyUI_ProperPixelArt_Pixelate"].execute(
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    main_inputs = dict(
         image=image,
-        num_colors=0,
+        num_colors=8,
         initial_upscale_factor=1,
         pixel_width=0,
         scale_result=1,
         transparent_background=False,
-        config=config,
     )
+    output = node.execute(**main_inputs, config=config)
+    default_output = node.execute(**main_inputs)
     assert_image_output(output)
+    assert_image_output(default_output)
+    assert not torch.equal(output.result[0], default_output.result[0])
