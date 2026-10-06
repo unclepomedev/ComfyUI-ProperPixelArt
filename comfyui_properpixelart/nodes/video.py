@@ -1,27 +1,46 @@
+import os
+
 import folder_paths
 from comfy_api.latest import io
+from proper_pixel_art.cli import VIDEO_SUFFIXES
 from proper_pixel_art.config import PixelateConfig
 
 from ..config_type import PixelateConfigType
 from ..core.video import pixelate_video_file
+from .paths import resolve_intermediate_dir
 
 DEFAULT_CONFIG = PixelateConfig()
+SUPPORTED_VIDEO_EXTS = sorted(suffix.lower() for suffix in VIDEO_SUFFIXES)
 
 
 class ProperPixelArtVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
+        input_dir = folder_paths.get_input_directory()
+        try:
+            files = [
+                f
+                for f in os.listdir(input_dir)
+                if os.path.isfile(os.path.join(input_dir, f))
+            ]
+        except FileNotFoundError:
+            files = []
+        files = folder_paths.filter_files_extensions(
+            files,
+            SUPPORTED_VIDEO_EXTS,
+        )
+
         return io.Schema(
             node_id="ComfyUI_ProperPixelArt_Video",
             display_name="Proper Pixel Art Video / GIF",
             category="image/Proper Pixel Art",
             is_output_node=True,
             inputs=[
-                io.String.Input(
+                io.Combo.Input(
                     "input_path",
-                    default="",
-                    multiline=False,
-                    tooltip="Server-side file path to the source video or GIF.",
+                    options=sorted(files),
+                    upload=io.UploadType.video,
+                    tooltip="Source video or GIF from the ComfyUI input directory.",
                 ),
                 io.Int.Input(
                     "num_colors",
@@ -78,7 +97,7 @@ class ProperPixelArtVideo(io.ComfyNode):
                     optional=True,
                     default="",
                     multiline=False,
-                    tooltip="Server-side directory to save intermediate algorithm visualization images. Empty disables saving.",
+                    tooltip="Subfolder in the ComfyUI output directory to save intermediate algorithm visualization images. Empty disables saving.",
                 ),
             ],
             outputs=[
@@ -103,9 +122,11 @@ class ProperPixelArtVideo(io.ComfyNode):
         config: PixelateConfig | None = None,
         intermediate_dir: str = "",
     ) -> io.NodeOutput:
+        resolved_input_path = folder_paths.get_annotated_filepath(input_path)
+        resolved_intermediate_dir = resolve_intermediate_dir(intermediate_dir)
         return io.NodeOutput(
             pixelate_video_file(
-                input_path=input_path,
+                input_path=resolved_input_path,
                 output_path=folder_paths.get_output_directory(),
                 num_colors=num_colors,
                 initial_upscale_factor=initial_upscale_factor,
@@ -115,6 +136,6 @@ class ProperPixelArtVideo(io.ComfyNode):
                 num_sample_frames=num_sample_frames,
                 output_format=output_format,
                 config=config,
-                intermediate_dir=intermediate_dir,
+                intermediate_dir=resolved_intermediate_dir,
             )
         )
