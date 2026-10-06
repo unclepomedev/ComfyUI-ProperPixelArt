@@ -1,5 +1,5 @@
 default:
-	@just --list
+    @just --list
 
 fmt:
     uv run ruff format comfyui_properpixelart tests tools
@@ -16,7 +16,7 @@ PYTHON_VERSION := "3.13"
 [private]
 setup-comfyui ref="v0.38.2":
     git init .cache/ComfyUI
-    git -C .cache/ComfyUI fetch --depth 1 https://github.com/comfyanonymous/ComfyUI.git {{quote(ref)}}
+    git -C .cache/ComfyUI fetch --depth 1 https://github.com/comfyanonymous/ComfyUI.git {{ quote(ref) }}
     git -C .cache/ComfyUI checkout --detach FETCH_HEAD
     uv venv --allow-existing --python {{ PYTHON_VERSION }} .cache/comfyui-venv
     uv pip install --python .cache/comfyui-venv --torch-backend cpu -r .cache/ComfyUI/requirements.txt -r requirements.txt pytest
