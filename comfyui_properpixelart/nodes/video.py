@@ -21,53 +21,72 @@ class ProperPixelArtVideo(io.ComfyNode):
                     "input_path",
                     default="",
                     multiline=False,
-                    tooltip="Server-side video or GIF path.",
+                    tooltip="Server-side file path to the source video or GIF.",
                 ),
                 io.Int.Input(
                     "num_colors",
                     default=DEFAULT_CONFIG.num_colors,
                     min=0,
                     max=256,
-                    tooltip="0 = no quantization",
+                    tooltip="Number of colors to quantize the frames to. 0 skips quantization and preserves all colors.",
                 ),
                 io.Int.Input(
                     "initial_upscale_factor",
                     default=DEFAULT_CONFIG.initial_upscale_factor,
                     min=1,
                     max=8,
+                    tooltip="Initial image upscale factor before grid detection. Useful if detected spacing is too large.",
                 ),
                 io.Int.Input(
                     "pixel_width",
                     default=DEFAULT_CONFIG.pixel_width,
                     min=0,
                     max=256,
-                    tooltip="0 = auto-detect",
+                    tooltip="Width of pixels in the input frames. 0 auto-detects pixel width.",
                 ),
                 io.Int.Input(
                     "scale_result",
                     default=DEFAULT_CONFIG.scale_result,
                     min=1,
                     max=20,
-                    tooltip="1 = no scaling",
+                    tooltip="Width of pixels in the output animation. 1 means no scaling.",
                 ),
                 io.Boolean.Input(
                     "transparent_background",
                     default=DEFAULT_CONFIG.transparent_background,
+                    tooltip="Makes pixels matching the most common boundary color transparent. GIF output supports only binary transparency.",
                 ),
-                io.Int.Input("num_sample_frames", default=8, min=1),
+                io.Int.Input(
+                    "num_sample_frames",
+                    default=8,
+                    min=1,
+                    tooltip="Number of frames to sample for mesh and palette detection across the video or GIF.",
+                ),
                 io.Combo.Input(
-                    "output_format", options=["Auto", "mp4", "gif"], default="Auto"
+                    "output_format",
+                    options=["Auto", "mp4", "gif"],
+                    default="Auto",
+                    tooltip="Output container format. Auto infers the format from the input extension (mp4 for non-GIF inputs).",
                 ),
-                PixelateConfigType.Input("config", optional=True),
+                PixelateConfigType.Input(
+                    "config",
+                    optional=True,
+                    tooltip="Optional advanced configuration overriding algorithm defaults.",
+                ),
                 io.String.Input(
                     "intermediate_dir",
                     optional=True,
                     default="",
                     multiline=False,
-                    tooltip="Directory for intermediate images. Empty = disabled.",
+                    tooltip="Server-side directory to save intermediate algorithm visualization images. Empty disables saving.",
                 ),
             ],
-            outputs=[io.String.Output(display_name="output_path")],
+            outputs=[
+                io.String.Output(
+                    display_name="output_path",
+                    tooltip="Server-side file path to the saved video or GIF in the ComfyUI output directory.",
+                )
+            ],
         )
 
     @classmethod
