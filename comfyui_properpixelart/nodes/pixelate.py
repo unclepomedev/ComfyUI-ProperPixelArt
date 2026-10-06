@@ -1,12 +1,10 @@
-import os
-
-import folder_paths
 import torch
 from comfy_api.latest import io
 from proper_pixel_art.config import PixelateConfig
 
 from ..config_type import PixelateConfigType
 from ..core.convert import pixelate_image
+from .paths import resolve_intermediate_dir
 
 DEFAULT_CONFIG = PixelateConfig()
 
@@ -88,16 +86,7 @@ class ProperPixelArt(io.ComfyNode):
         config: PixelateConfig | None = None,
         intermediate_dir: str = "",
     ) -> io.NodeOutput:
-        resolved_intermediate_dir = (
-            folder_paths.get_annotated_filepath(
-                intermediate_dir,
-                default_dir=folder_paths.get_output_directory(),
-            )
-            if intermediate_dir
-            else ""
-        )
-        if resolved_intermediate_dir:
-            os.makedirs(resolved_intermediate_dir, exist_ok=True)
+        resolved_intermediate_dir = resolve_intermediate_dir(intermediate_dir)
         return io.NodeOutput(
             pixelate_image(
                 image=image,

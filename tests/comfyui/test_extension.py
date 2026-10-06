@@ -203,17 +203,22 @@ def video_directories(tmp_path):
     folder_paths = sys.modules["folder_paths"]
     prev_input = folder_paths.get_input_directory()
     prev_output = folder_paths.get_output_directory()
+    prev_temp = folder_paths.get_temp_directory()
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
+    temp_dir = tmp_path / "temp"
     input_dir.mkdir()
     output_dir.mkdir()
+    temp_dir.mkdir()
     folder_paths.set_input_directory(str(input_dir))
     folder_paths.set_output_directory(str(output_dir))
+    folder_paths.set_temp_directory(str(temp_dir))
     try:
-        yield {"input": input_dir, "output": output_dir}
+        yield {"input": input_dir, "output": output_dir, "temp": temp_dir}
     finally:
         folder_paths.set_input_directory(prev_input)
         folder_paths.set_output_directory(prev_output)
+        folder_paths.set_temp_directory(prev_temp)
 
 
 def test_video_execute(node_list, video_directories):
@@ -350,6 +355,56 @@ def test_intermediate_dir_empty_saves_nothing(node_list, image, video_directorie
     )
     after_items = set(output_dir.iterdir())
     assert initial_items == after_items
+
+
+@pytest.mark.parametrize(
+    "annotated_dir",
+    ["sub [input]", "sub [temp]"],
+)
+@pytest.mark.parametrize(
+    "node_key",
+    ["ComfyUI_ProperPixelArt_Pixelate", "ComfyUI_ProperPixelArt_Video"],
+)
+def test_intermediate_dir_annotation_rejected(
+    node_list, image, video_directories, node_key, annotated_dir
+):
+    node = node_list[node_key]
+    input_dir = video_directories["input"]
+    output_dir = video_directories["output"]
+    temp_dir = video_directories["temp"]
+
+    if node_key == "ComfyUI_ProperPixelArt_Video":
+        create_gif(input_dir / "sample.gif")
+        kwargs = dict(
+            input_path="sample.gif",
+            num_colors=0,
+            initial_upscale_factor=1,
+            pixel_width=0,
+            scale_result=1,
+            transparent_background=False,
+            intermediate_dir=annotated_dir,
+        )
+    else:
+        kwargs = dict(
+            image=image,
+            num_colors=8,
+            initial_upscale_factor=1,
+            pixel_width=16,
+            scale_result=1,
+            transparent_background=False,
+            intermediate_dir=annotated_dir,
+        )
+
+    initial_input = set(input_dir.iterdir())
+    initial_output = set(output_dir.iterdir())
+    initial_temp = set(temp_dir.iterdir())
+
+    with pytest.raises(ValueError):
+        node.execute(**kwargs)
+
+    assert set(input_dir.iterdir()) == initial_input
+    assert set(output_dir.iterdir()) == initial_output
+    assert set(temp_dir.iterdir()) == initial_temp
 
 
 def test_docs_drift(node_list):

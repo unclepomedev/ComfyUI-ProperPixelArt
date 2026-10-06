@@ -7,6 +7,7 @@ from proper_pixel_art.config import PixelateConfig
 
 from ..config_type import PixelateConfigType
 from ..core.video import pixelate_video_file
+from .paths import resolve_intermediate_dir
 
 DEFAULT_CONFIG = PixelateConfig()
 SUPPORTED_VIDEO_EXTS = sorted(suffix.lower() for suffix in VIDEO_SUFFIXES)
@@ -122,14 +123,7 @@ class ProperPixelArtVideo(io.ComfyNode):
         intermediate_dir: str = "",
     ) -> io.NodeOutput:
         resolved_input_path = folder_paths.get_annotated_filepath(input_path)
-        resolved_intermediate_dir = (
-            folder_paths.get_annotated_filepath(
-                intermediate_dir,
-                default_dir=folder_paths.get_output_directory(),
-            )
-            if intermediate_dir
-            else ""
-        )
+        resolved_intermediate_dir = resolve_intermediate_dir(intermediate_dir)
         return io.NodeOutput(
             pixelate_video_file(
                 input_path=resolved_input_path,
