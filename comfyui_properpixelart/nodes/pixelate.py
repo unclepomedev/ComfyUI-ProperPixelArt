@@ -1,3 +1,5 @@
+import os
+
 import torch
 from comfy_api.latest import io
 from proper_pixel_art.config import PixelateConfig
@@ -64,12 +66,13 @@ class ProperPixelArt(io.ComfyNode):
                     optional=True,
                     default="",
                     multiline=False,
-                    tooltip="Subfolder in the ComfyUI output directory to save intermediate algorithm visualization images. Empty disables saving.",
+                    tooltip="Subfolder in the ComfyUI output directory to save intermediate algorithm visualization images into numbered subfolders (0, 1, ...) for each image. Empty disables saving.",
                 ),
             ],
             outputs=[
                 io.Image.Output(
-                    tooltip="Pixelated true-resolution image as an RGBA tensor."
+                    is_output_list=True,
+                    tooltip="List of pixelated true-resolution images as RGBA tensors.",
                 )
             ],
         )
@@ -86,16 +89,27 @@ class ProperPixelArt(io.ComfyNode):
         config: PixelateConfig | None = None,
         intermediate_dir: str = "",
     ) -> io.NodeOutput:
-        resolved_intermediate_dir = resolve_intermediate_dir(intermediate_dir)
-        return io.NodeOutput(
-            pixelate_image(
-                image=image,
+        num_images = image.shape[0]
+        intermediate_dirs: list[str] = []
+        if intermediate_dir:
+            base_dir = resolve_intermediate_dir(intermediate_dir)
+            for i in range(num_images):
+                numbered_rel = os.path.join(base_dir, str(i))
+                intermediate_dirs.append(resolve_intermediate_dir(numbered_rel))
+
+        results = []
+        for i in range(num_images):
+            target_intermediate_dir = intermediate_dirs[i] if intermediate_dir else ""
+            out = pixelate_image(
+                image=image[i : i + 1],
                 num_colors=num_colors,
                 initial_upscale_factor=initial_upscale_factor,
                 pixel_width=pixel_width,
                 scale_result=scale_result,
                 transparent_background=transparent_background,
                 config=config,
-                intermediate_dir=resolved_intermediate_dir,
-            ),
-        )
+                intermediate_dir=target_intermediate_dir,
+            )
+            results.append(out)
+
+        return io.NodeOutput(results)

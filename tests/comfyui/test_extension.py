@@ -10,7 +10,13 @@ import torch
 from PIL import Image
 from proper_pixel_art.config import PixelateConfig
 
-from tests.helpers import MODIFIED_INPUTS, config_inputs, create_gif, upstream_config
+from tests.helpers import (
+    MODIFIED_INPUTS,
+    config_inputs,
+    create_gif,
+    create_pixel_art_tensor,
+    upstream_config,
+)
 from tools.generate_docs import generate_nodes_markdown
 
 if "REQUIRE_COMFYUI" in os.environ:
@@ -109,31 +115,51 @@ def test_config_execute(node_list, modified):
 
 @pytest.fixture
 def image():
-    cells = np.random.default_rng(42).integers(0, 256, size=(32, 32, 3), dtype=np.uint8)
-    source = Image.fromarray(cells).resize((512, 512), Image.Resampling.NEAREST)
-    return torch.from_numpy(np.array(source, dtype=np.float32) / 255).unsqueeze(0)
+    return create_pixel_art_tensor()
 
 
-def assert_image_output(output):
+def execute_pixelate(
+    node,
+    image,
+    num_colors=0,
+    initial_upscale_factor=1,
+    pixel_width=0,
+    scale_result=1,
+    transparent_background=False,
+    config=None,
+    intermediate_dir="",
+):
+    return node.execute(
+        image=image,
+        num_colors=num_colors,
+        initial_upscale_factor=initial_upscale_factor,
+        pixel_width=pixel_width,
+        scale_result=scale_result,
+        transparent_background=transparent_background,
+        config=config,
+        intermediate_dir=intermediate_dir,
+    )
+
+
+def assert_image_output(output, expected_len=1):
     assert isinstance(output, comfy_api.io.NodeOutput)
     assert len(output.result) == 1
-    result = output.result[0]
-    assert isinstance(result, torch.Tensor)
-    assert result.ndim == 4
-    assert result.shape[0] == 1 and result.shape[-1] == 4
-    assert result.shape[1] > 1 and result.shape[2] > 1
-    assert result.dtype == torch.float32
-    assert torch.all((result >= 0) & (result <= 1))
+    result_list = output.result[0]
+    assert isinstance(result_list, list)
+    assert len(result_list) == expected_len
+    for result in result_list:
+        assert isinstance(result, torch.Tensor)
+        assert result.ndim == 4
+        assert result.shape[0] == 1 and result.shape[-1] == 4
+        assert result.shape[1] > 1 and result.shape[2] > 1
+        assert result.dtype == torch.float32
+        assert torch.all((result >= 0) & (result <= 1))
 
 
 def test_execute(node_list, image):
-    output = node_list["ComfyUI_ProperPixelArt_Pixelate"].execute(
+    output = execute_pixelate(
+        node_list["ComfyUI_ProperPixelArt_Pixelate"],
         image=image,
-        num_colors=0,
-        initial_upscale_factor=1,
-        pixel_width=0,
-        scale_result=1,
-        transparent_background=False,
     )
     assert_image_output(output)
 
@@ -143,19 +169,11 @@ def test_config_connection(node_list, image):
     inputs.update(quantize_method="FASTOCTREE")
     config = node_list["ComfyUI_ProperPixelArt_Config"].execute(**inputs).result[0]
     node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
-    main_inputs = dict(
-        image=image,
-        num_colors=8,
-        initial_upscale_factor=1,
-        pixel_width=0,
-        scale_result=1,
-        transparent_background=False,
-    )
-    output = node.execute(**main_inputs, config=config)
-    default_output = node.execute(**main_inputs)
+    output = execute_pixelate(node, image=image, num_colors=8, config=config)
+    default_output = execute_pixelate(node, image=image, num_colors=8)
     assert_image_output(output)
     assert_image_output(default_output)
-    assert not torch.equal(output.result[0], default_output.result[0])
+    assert not torch.equal(output.result[0][0], default_output.result[0][0])
 
 
 def test_video_schema(node_list):
@@ -180,8 +198,8 @@ def test_video_schema(node_list):
     assert len(schema.outputs) == 1
 
 
-def test_video_supported_extensions(node_list, video_directories):
-    input_dir = video_directories["input"]
+def test_video_supported_extensions(node_list, comfy_directories):
+    input_dir = comfy_directories["input"]
     node_cls = node_list["ComfyUI_ProperPixelArt_Video"]
 
     # Create dummy files for every upstream supported suffix in the input directory and an unsupported extension.
@@ -199,7 +217,7 @@ def test_video_supported_extensions(node_list, video_directories):
 
 
 @pytest.fixture
-def video_directories(tmp_path):
+def comfy_directories(tmp_path):
     folder_paths = sys.modules["folder_paths"]
     prev_input = folder_paths.get_input_directory()
     prev_output = folder_paths.get_output_directory()
@@ -221,9 +239,9 @@ def video_directories(tmp_path):
         folder_paths.set_temp_directory(prev_temp)
 
 
-def test_video_execute(node_list, video_directories):
-    input_dir = video_directories["input"]
-    output_dir = video_directories["output"]
+def test_video_execute(node_list, comfy_directories):
+    input_dir = comfy_directories["input"]
+    output_dir = comfy_directories["output"]
     create_gif(input_dir / "input.gif")
     node = node_list["ComfyUI_ProperPixelArt_Video"]
     main_inputs = dict(
@@ -256,7 +274,7 @@ def test_video_execute(node_list, video_directories):
         assert not np.array_equal(configured_frame, np.array(result.convert("RGBA")))
 
 
-def test_input_path_traversal_rejected(node_list, video_directories):
+def test_input_path_traversal_rejected(node_list, comfy_directories):
     node = node_list["ComfyUI_ProperPixelArt_Video"]
     with pytest.raises(ValueError):
         node.execute(
@@ -269,59 +287,57 @@ def test_input_path_traversal_rejected(node_list, video_directories):
         )
 
 
-def test_intermediate_dir_traversal_rejected(node_list, image, video_directories):
+def test_intermediate_dir_traversal_rejected(node_list, image, comfy_directories):
     pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
     with pytest.raises(ValueError):
-        pixelate_node.execute(
+        execute_pixelate(
+            pixelate_node,
             image=image,
             num_colors=8,
-            initial_upscale_factor=1,
             pixel_width=16,
-            scale_result=1,
-            transparent_background=False,
             intermediate_dir="../escape",
         )
 
 
-def test_intermediate_dir_existing_subfolder(node_list, image, video_directories):
-    output_dir = video_directories["output"]
+def test_intermediate_dir_existing_subfolder(node_list, image, comfy_directories):
+    output_dir = comfy_directories["output"]
     pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
     valid_subfolder = output_dir / "inter_steps"
     valid_subfolder.mkdir()
-    pixelate_node.execute(
+    execute_pixelate(
+        pixelate_node,
         image=image,
         num_colors=8,
-        initial_upscale_factor=1,
         pixel_width=16,
-        scale_result=1,
-        transparent_background=False,
         intermediate_dir="inter_steps",
     )
-    saved_files = list(valid_subfolder.iterdir())
+    numbered_subfolder = valid_subfolder / "0"
+    assert numbered_subfolder.is_dir()
+    saved_files = list(numbered_subfolder.iterdir())
     assert len(saved_files) > 0
 
 
-def test_intermediate_dir_nonexistent_subfolder(node_list, image, video_directories):
-    output_dir = video_directories["output"]
-    input_dir = video_directories["input"]
+def test_intermediate_dir_nonexistent_subfolder(node_list, image, comfy_directories):
+    output_dir = comfy_directories["output"]
+    input_dir = comfy_directories["input"]
 
-    # Pixelate node with a non-existent subfolder
+    # Pixelate node with a non-existent subfolder (saves in numbered subfolder "0")
     pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
     new_pixelate_subfolder = output_dir / "new_pixelate_dir"
     assert not new_pixelate_subfolder.exists()
-    pixelate_node.execute(
+    execute_pixelate(
+        pixelate_node,
         image=image,
         num_colors=8,
-        initial_upscale_factor=1,
         pixel_width=16,
-        scale_result=1,
-        transparent_background=False,
         intermediate_dir="new_pixelate_dir",
     )
     assert new_pixelate_subfolder.is_dir()
-    assert len(list(new_pixelate_subfolder.iterdir())) > 0
+    numbered_subfolder = new_pixelate_subfolder / "0"
+    assert numbered_subfolder.is_dir()
+    assert len(list(numbered_subfolder.iterdir())) > 0
 
-    # Video node with a non-existent subfolder
+    # Video node with a non-existent subfolder (saves directly in the subfolder)
     create_gif(input_dir / "input_for_inter.gif")
     video_node = node_list["ComfyUI_ProperPixelArt_Video"]
     new_video_subfolder = output_dir / "new_video_dir"
@@ -339,18 +355,16 @@ def test_intermediate_dir_nonexistent_subfolder(node_list, image, video_director
     assert len(list(new_video_subfolder.iterdir())) > 0
 
 
-def test_intermediate_dir_empty_saves_nothing(node_list, image, video_directories):
-    output_dir = video_directories["output"]
+def test_intermediate_dir_empty_saves_nothing(node_list, image, comfy_directories):
+    output_dir = comfy_directories["output"]
     pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
 
     initial_items = set(output_dir.iterdir())
-    pixelate_node.execute(
+    execute_pixelate(
+        pixelate_node,
         image=image,
         num_colors=8,
-        initial_upscale_factor=1,
         pixel_width=16,
-        scale_result=1,
-        transparent_background=False,
         intermediate_dir="",
     )
     after_items = set(output_dir.iterdir())
@@ -366,45 +380,142 @@ def test_intermediate_dir_empty_saves_nothing(node_list, image, video_directorie
     ["ComfyUI_ProperPixelArt_Pixelate", "ComfyUI_ProperPixelArt_Video"],
 )
 def test_intermediate_dir_annotation_rejected(
-    node_list, image, video_directories, node_key, annotated_dir
+    node_list, image, comfy_directories, node_key, annotated_dir
 ):
     node = node_list[node_key]
-    input_dir = video_directories["input"]
-    output_dir = video_directories["output"]
-    temp_dir = video_directories["temp"]
+    input_dir = comfy_directories["input"]
+    output_dir = comfy_directories["output"]
+    temp_dir = comfy_directories["temp"]
 
     if node_key == "ComfyUI_ProperPixelArt_Video":
         create_gif(input_dir / "sample.gif")
-        kwargs = dict(
-            input_path="sample.gif",
-            num_colors=0,
-            initial_upscale_factor=1,
-            pixel_width=0,
-            scale_result=1,
-            transparent_background=False,
-            intermediate_dir=annotated_dir,
-        )
-    else:
-        kwargs = dict(
-            image=image,
-            num_colors=8,
-            initial_upscale_factor=1,
-            pixel_width=16,
-            scale_result=1,
-            transparent_background=False,
-            intermediate_dir=annotated_dir,
-        )
 
     initial_input = set(input_dir.iterdir())
     initial_output = set(output_dir.iterdir())
     initial_temp = set(temp_dir.iterdir())
 
     with pytest.raises(ValueError):
-        node.execute(**kwargs)
+        if node_key == "ComfyUI_ProperPixelArt_Video":
+            node.execute(
+                input_path="sample.gif",
+                num_colors=0,
+                initial_upscale_factor=1,
+                pixel_width=0,
+                scale_result=1,
+                transparent_background=False,
+                intermediate_dir=annotated_dir,
+            )
+        else:
+            execute_pixelate(
+                node,
+                image=image,
+                num_colors=8,
+                pixel_width=16,
+                intermediate_dir=annotated_dir,
+            )
 
     assert set(input_dir.iterdir()) == initial_input
     assert set(output_dir.iterdir()) == initial_output
     assert set(temp_dir.iterdir()) == initial_temp
+
+
+def test_batch_execution(node_list):
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    t1 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=42)
+    t2 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=100)
+    batch = torch.cat([t1, t2], dim=0)
+
+    output = execute_pixelate(node, image=batch)
+    assert isinstance(output, comfy_api.io.NodeOutput)
+    assert isinstance(output.result[0], list)
+    assert len(output.result[0]) == 2
+
+    out1 = execute_pixelate(node, image=t1).result[0]
+    out2 = execute_pixelate(node, image=t2).result[0]
+    assert torch.equal(output.result[0][0], out1[0])
+    assert torch.equal(output.result[0][1], out2[0])
+
+
+def test_single_image_batch_execution(node_list, image):
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    output = execute_pixelate(node, image=image)
+    assert isinstance(output, comfy_api.io.NodeOutput)
+    assert isinstance(output.result[0], list)
+    assert len(output.result[0]) == 1
+    assert_image_output(output, expected_len=1)
+
+
+def test_batch_different_sizes_execution(node_list):
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    t1 = create_pixel_art_tensor(grid_size=16, image_size=512, seed=42)
+    t2 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=100)
+    batch = torch.cat([t1, t2], dim=0)
+
+    output = execute_pixelate(node, image=batch)
+    assert isinstance(output, comfy_api.io.NodeOutput)
+    assert isinstance(output.result[0], list)
+    assert len(output.result[0]) == 2
+
+    out1 = output.result[0][0]
+    out2 = output.result[0][1]
+
+    # Verify that different grid cell counts produce different output sizes
+    assert out1.shape != out2.shape
+    assert (out1.shape[1], out1.shape[2]) == (16, 16)
+    assert (out2.shape[1], out2.shape[2]) == (32, 32)
+
+    # Verify that each matches executing individually
+    single1 = execute_pixelate(node, image=t1).result[0][0]
+    single2 = execute_pixelate(node, image=t2).result[0][0]
+    assert torch.equal(out1, single1)
+    assert torch.equal(out2, single2)
+
+
+def test_batch_intermediate_dir_numbered(node_list, comfy_directories):
+    output_dir = comfy_directories["output"]
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+
+    t1 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=42)
+    t2 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=100)
+
+    # Single image: saves to subfolder/0
+    single_out_dir = output_dir / "single_inter"
+    execute_pixelate(
+        node,
+        image=t1,
+        num_colors=8,
+        pixel_width=16,
+        intermediate_dir="single_inter",
+    )
+    assert (single_out_dir / "0").is_dir()
+    assert len(list((single_out_dir / "0").iterdir())) > 0
+    assert not (single_out_dir / "1").exists()
+
+    # Batch of 2 images: saves to batch_inter/0 and batch_inter/1
+    batch = torch.cat([t1, t2], dim=0)
+    batch_out_dir = output_dir / "batch_inter"
+    execute_pixelate(
+        node,
+        image=batch,
+        num_colors=8,
+        pixel_width=16,
+        intermediate_dir="batch_inter",
+    )
+    assert (batch_out_dir / "0").is_dir()
+    assert len(list((batch_out_dir / "0").iterdir())) > 0
+    assert (batch_out_dir / "1").is_dir()
+    assert len(list((batch_out_dir / "1").iterdir())) > 0
+
+
+def test_batch_no_warning(node_list, caplog):
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    t1 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=42)
+    t2 = create_pixel_art_tensor(grid_size=32, image_size=512, seed=100)
+    batch = torch.cat([t1, t2], dim=0)
+
+    with caplog.at_level("WARNING"):
+        execute_pixelate(node, image=batch)
+    assert not caplog.text
 
 
 def test_docs_drift(node_list):

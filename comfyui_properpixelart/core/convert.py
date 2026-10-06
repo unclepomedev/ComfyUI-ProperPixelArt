@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 import numpy as np
@@ -6,8 +5,6 @@ import torch
 from PIL import Image
 from proper_pixel_art import pixelate
 from proper_pixel_art.config import PixelateConfig
-
-logger = logging.getLogger(__name__)
 
 
 def tensor_to_pil(image: torch.Tensor) -> Image.Image:
@@ -30,11 +27,6 @@ def pixelate_image(
     config: PixelateConfig | None = None,
     intermediate_dir: str = "",
 ) -> torch.Tensor:
-    if image.shape[0] >= 2:
-        logger.warning(
-            "Received %d images; processing only the first image and ignoring the rest.",
-            image.shape[0],
-        )
     result = pixelate(
         image=tensor_to_pil(image),
         num_colors=num_colors,

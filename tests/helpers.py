@@ -1,6 +1,7 @@
 from dataclasses import asdict
 
 import numpy as np
+import torch
 from PIL import Image
 from proper_pixel_art.config import PixelateConfig
 from proper_pixel_art.web import build_config as upstream_build_config
@@ -44,6 +45,21 @@ def upstream_config(inputs):
     main.pop("mesh")
     main.pop("colors")
     return upstream_build_config(**main, **inputs)
+
+
+def create_pixel_art_tensor(
+    grid_size: int = 32,
+    image_size: int = 512,
+    seed: int = 42,
+    channels: int = 3,
+):
+    cells = np.random.default_rng(seed).integers(
+        0, 256, size=(grid_size, grid_size, channels), dtype=np.uint8
+    )
+    img = Image.fromarray(cells).resize(
+        (image_size, image_size), Image.Resampling.NEAREST
+    )
+    return torch.from_numpy(np.array(img, dtype=np.float32) / 255).unsqueeze(0)
 
 
 def create_gif(path):
