@@ -6,7 +6,8 @@ from .nodes.video import ProperPixelArtVideo
 
 
 class ProperPixelArtExtension(ComfyExtension):
-    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+    @staticmethod
+    async def get_node_list() -> list[type[io.ComfyNode]]:
         return [ProperPixelArt, ProperPixelArtConfig, ProperPixelArtVideo]
 
 
