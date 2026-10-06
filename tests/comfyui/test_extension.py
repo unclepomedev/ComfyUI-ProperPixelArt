@@ -18,6 +18,8 @@ if "REQUIRE_COMFYUI" in os.environ:
 else:
     comfy_api = pytest.importorskip("comfy_api.latest")
 
+from proper_pixel_art.cli import VIDEO_SUFFIXES
+
 
 @pytest.fixture(scope="module")
 def node_list():
@@ -167,7 +169,7 @@ def test_video_schema(node_list):
         assert inputs[name].min == image_inputs[name].min
         assert inputs[name].max == image_inputs[name].max
     assert schema.is_output_node
-    assert inputs["input_path"].default == ""
+    assert inputs["input_path"].upload == comfy_api.io.UploadType.video
     assert inputs["output_format"].options == ["Auto", "mp4", "gif"]
     assert inputs["output_format"].default == "Auto"
     assert inputs["num_sample_frames"].default == 8
@@ -178,24 +180,49 @@ def test_video_schema(node_list):
     assert len(schema.outputs) == 1
 
 
+def test_video_supported_extensions(node_list, video_directories):
+    input_dir = video_directories["input"]
+    node_cls = node_list["ComfyUI_ProperPixelArt_Video"]
+
+    # Create dummy files for every upstream supported suffix in the input directory and an unsupported extension.
+    created_names = []
+    for idx, suffix in enumerate(sorted(VIDEO_SUFFIXES)):
+        filename = f"sample_{idx}{suffix.lower()}"
+        (input_dir / filename).touch()
+        created_names.append(filename)
+    (input_dir / "ignored.txt").touch()
+
+    schema = node_cls.define_schema()
+    inputs = {widget.id: widget for widget in schema.inputs}
+    options = inputs["input_path"].options
+    assert options == sorted(created_names)
+
+
 @pytest.fixture
-def video_output_directory(tmp_path):
+def video_directories(tmp_path):
     folder_paths = sys.modules["folder_paths"]
-    previous = folder_paths.get_output_directory()
-    output = tmp_path / "output"
-    output.mkdir()
-    folder_paths.set_output_directory(str(output))
+    prev_input = folder_paths.get_input_directory()
+    prev_output = folder_paths.get_output_directory()
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    folder_paths.set_input_directory(str(input_dir))
+    folder_paths.set_output_directory(str(output_dir))
     try:
-        yield output
+        yield {"input": input_dir, "output": output_dir}
     finally:
-        folder_paths.set_output_directory(previous)
+        folder_paths.set_input_directory(prev_input)
+        folder_paths.set_output_directory(prev_output)
 
 
-def test_video_execute(node_list, tmp_path, video_output_directory):
-    source = create_gif(tmp_path / "input.gif")
+def test_video_execute(node_list, video_directories):
+    input_dir = video_directories["input"]
+    output_dir = video_directories["output"]
+    create_gif(input_dir / "input.gif")
     node = node_list["ComfyUI_ProperPixelArt_Video"]
     main_inputs = dict(
-        input_path=str(source),
+        input_path="input.gif",
         num_colors=0,
         initial_upscale_factor=1,
         pixel_width=0,
@@ -213,7 +240,7 @@ def test_video_execute(node_list, tmp_path, video_output_directory):
     assert isinstance(output.result[0], str)
     path = Path(output.result[0])
     assert path.is_file()
-    assert path.parent == video_output_directory
+    assert path.parent == output_dir
     with Image.open(path) as result:
         assert result.format == "GIF"
         assert result.n_frames == 2
@@ -222,6 +249,107 @@ def test_video_execute(node_list, tmp_path, video_output_directory):
     default_output = node.execute(**main_inputs)
     with Image.open(default_output.result[0]) as result:
         assert not np.array_equal(configured_frame, np.array(result.convert("RGBA")))
+
+
+def test_input_path_traversal_rejected(node_list, video_directories):
+    node = node_list["ComfyUI_ProperPixelArt_Video"]
+    with pytest.raises(ValueError):
+        node.execute(
+            input_path="../outside.gif",
+            num_colors=0,
+            initial_upscale_factor=1,
+            pixel_width=0,
+            scale_result=1,
+            transparent_background=False,
+        )
+
+
+def test_intermediate_dir_traversal_rejected(node_list, image, video_directories):
+    pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    with pytest.raises(ValueError):
+        pixelate_node.execute(
+            image=image,
+            num_colors=8,
+            initial_upscale_factor=1,
+            pixel_width=16,
+            scale_result=1,
+            transparent_background=False,
+            intermediate_dir="../escape",
+        )
+
+
+def test_intermediate_dir_existing_subfolder(node_list, image, video_directories):
+    output_dir = video_directories["output"]
+    pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    valid_subfolder = output_dir / "inter_steps"
+    valid_subfolder.mkdir()
+    pixelate_node.execute(
+        image=image,
+        num_colors=8,
+        initial_upscale_factor=1,
+        pixel_width=16,
+        scale_result=1,
+        transparent_background=False,
+        intermediate_dir="inter_steps",
+    )
+    saved_files = list(valid_subfolder.iterdir())
+    assert len(saved_files) > 0
+
+
+def test_intermediate_dir_nonexistent_subfolder(node_list, image, video_directories):
+    output_dir = video_directories["output"]
+    input_dir = video_directories["input"]
+
+    # Pixelate node with a non-existent subfolder
+    pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    new_pixelate_subfolder = output_dir / "new_pixelate_dir"
+    assert not new_pixelate_subfolder.exists()
+    pixelate_node.execute(
+        image=image,
+        num_colors=8,
+        initial_upscale_factor=1,
+        pixel_width=16,
+        scale_result=1,
+        transparent_background=False,
+        intermediate_dir="new_pixelate_dir",
+    )
+    assert new_pixelate_subfolder.is_dir()
+    assert len(list(new_pixelate_subfolder.iterdir())) > 0
+
+    # Video node with a non-existent subfolder
+    create_gif(input_dir / "input_for_inter.gif")
+    video_node = node_list["ComfyUI_ProperPixelArt_Video"]
+    new_video_subfolder = output_dir / "new_video_dir"
+    assert not new_video_subfolder.exists()
+    video_node.execute(
+        input_path="input_for_inter.gif",
+        num_colors=0,
+        initial_upscale_factor=1,
+        pixel_width=0,
+        scale_result=1,
+        transparent_background=False,
+        intermediate_dir="new_video_dir",
+    )
+    assert new_video_subfolder.is_dir()
+    assert len(list(new_video_subfolder.iterdir())) > 0
+
+
+def test_intermediate_dir_empty_saves_nothing(node_list, image, video_directories):
+    output_dir = video_directories["output"]
+    pixelate_node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+
+    initial_items = set(output_dir.iterdir())
+    pixelate_node.execute(
+        image=image,
+        num_colors=8,
+        initial_upscale_factor=1,
+        pixel_width=16,
+        scale_result=1,
+        transparent_background=False,
+        intermediate_dir="",
+    )
+    after_items = set(output_dir.iterdir())
+    assert initial_items == after_items
 
 
 def test_docs_drift(node_list):

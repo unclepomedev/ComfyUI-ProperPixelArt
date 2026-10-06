@@ -1,3 +1,6 @@
+import os
+
+import folder_paths
 import torch
 from comfy_api.latest import io
 from proper_pixel_art.config import PixelateConfig
@@ -63,7 +66,7 @@ class ProperPixelArt(io.ComfyNode):
                     optional=True,
                     default="",
                     multiline=False,
-                    tooltip="Server-side directory to save intermediate algorithm visualization images. Empty disables saving.",
+                    tooltip="Subfolder in the ComfyUI output directory to save intermediate algorithm visualization images. Empty disables saving.",
                 ),
             ],
             outputs=[
@@ -85,6 +88,16 @@ class ProperPixelArt(io.ComfyNode):
         config: PixelateConfig | None = None,
         intermediate_dir: str = "",
     ) -> io.NodeOutput:
+        resolved_intermediate_dir = (
+            folder_paths.get_annotated_filepath(
+                intermediate_dir,
+                default_dir=folder_paths.get_output_directory(),
+            )
+            if intermediate_dir
+            else ""
+        )
+        if resolved_intermediate_dir:
+            os.makedirs(resolved_intermediate_dir, exist_ok=True)
         return io.NodeOutput(
             pixelate_image(
                 image=image,
@@ -94,6 +107,6 @@ class ProperPixelArt(io.ComfyNode):
                 scale_result=scale_result,
                 transparent_background=transparent_background,
                 config=config,
-                intermediate_dir=intermediate_dir,
+                intermediate_dir=resolved_intermediate_dir,
             ),
         )

@@ -109,6 +109,8 @@ def generate_nodes_markdown(
             min_val = getattr(inp, "min", None)
             max_val = getattr(inp, "max", None)
             options = getattr(inp, "options", None)
+            if getattr(inp, "upload", None) is not None:
+                options = None
             optional = "Yes" if inp.optional else "No"
             tooltip = inp.tooltip or "-"
 

@@ -16,5 +16,4 @@ See [docs/nodes.md](docs/nodes.md) for detailed inputs and outputs of each node.
 
 ## Notes
 
-- `input_path` and `intermediate_dir` are server-side paths with no restriction; use only with trusted workflow users.
 - Video/GIF: the output directory name must not contain a dot.
