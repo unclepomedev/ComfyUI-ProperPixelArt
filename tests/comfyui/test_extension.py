@@ -11,6 +11,7 @@ from PIL import Image
 from proper_pixel_art.config import PixelateConfig
 
 from tests.helpers import MODIFIED_INPUTS, config_inputs, create_gif, upstream_config
+from tools.generate_docs import generate_nodes_markdown
 
 if "REQUIRE_COMFYUI" in os.environ:
     import comfy_api.latest as comfy_api
@@ -221,3 +222,22 @@ def test_video_execute(node_list, tmp_path, video_output_directory):
     default_output = node.execute(**main_inputs)
     with Image.open(default_output.result[0]) as result:
         assert not np.array_equal(configured_frame, np.array(result.convert("RGBA")))
+
+
+def test_docs_drift(node_list):
+    root = Path(__file__).resolve().parents[2]
+    docs_file = root / "docs" / "nodes.md"
+    assert docs_file.is_file(), (
+        f"{docs_file} does not exist. Run `just docs` to generate it."
+    )
+
+    expected = generate_nodes_markdown(list(node_list.values()))
+    actual = docs_file.read_bytes().decode("utf-8")
+
+    # Normalize line endings to LF
+    expected_normalized = expected.replace("\r\n", "\n").replace("\r", "\n")
+    actual_normalized = actual.replace("\r\n", "\n").replace("\r", "\n")
+
+    assert actual_normalized == expected_normalized, (
+        "docs/nodes.md is out of sync with node schemas. Run `just docs` to regenerate it."
+    )

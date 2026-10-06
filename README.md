@@ -8,6 +8,8 @@ Clone into `custom_nodes/` and run `pip install -r requirements.txt`.
 
 ## Nodes
 
+See [docs/nodes.md](docs/nodes.md) for detailed inputs and outputs of each node.
+
 - **Proper Pixel Art**: IMAGE to RGBA IMAGE. Only the first image of a batch is processed.
 - **Proper Pixel Art Config**: Advanced settings. Connect to `config`.
 - **Proper Pixel Art Video / GIF**: Saves to the output directory and returns the path.
