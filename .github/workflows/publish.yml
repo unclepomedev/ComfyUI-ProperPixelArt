@@ -30,8 +30,15 @@ jobs:
             exit 1
           fi
 
-      - name: Publish Custom Node
-        uses: Comfy-Org/publish-node-action@d2366e7abb6ab16f3bb03e3520ae25c8cf749bc9 # main
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
-          skip_checkout: true
+          enable-cache: true
+
+      - name: Publish Custom Node
+        shell: bash
+        env:
+          COMFY_REGISTRY_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+        run: |
+          uvx --from comfy-cli comfy --skip-prompt --no-enable-telemetry env
+          uvx --from comfy-cli comfy node publish --token "$COMFY_REGISTRY_TOKEN"
