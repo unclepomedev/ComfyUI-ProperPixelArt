@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import torch
@@ -6,6 +8,7 @@ from proper_pixel_art import pixelate
 from proper_pixel_art.config import PixelateConfig
 
 from comfyui_properpixelart.core.convert import (
+    build_image_config,
     pil_to_tensor,
     pixelate_image,
     tensor_to_pil,
@@ -40,11 +43,15 @@ def test_equivalence(
     image = pil_to_tensor(source)
     config = (
         PixelateConfig(
-            num_colors=4,
             initial_upscale_factor=2,
             pixel_width=2,
             scale_result=3,
             transparent_background=not transparent_background,
+            colors=replace(
+                PixelateConfig().colors,
+                method="palette",
+                palette=replace(PixelateConfig().colors.palette, num_colors=4),
+            ),
         )
         if with_config
         else None
@@ -57,7 +64,16 @@ def test_equivalence(
         "transparent_background": transparent_background,
         "config": config,
     }
-    expected = pixelate(source, **kwargs)
+    expected_cfg = build_image_config(
+        num_colors=num_colors,
+        initial_upscale_factor=1,
+        pixel_width=pixel_width,
+        scale_result=scale_result,
+        transparent_background=transparent_background,
+        base_config=config,
+    )
+    expected_res = pixelate(source, config=expected_cfg)
+    expected = expected_res.image
     assert expected.width > 1 and expected.height > 1
     actual = pixelate_image(image, **kwargs)
     assert expected.mode == "RGBA"
@@ -119,15 +135,19 @@ def test_intermediate_dir(tmp_path):
         False,
         intermediate_dir=str(actual_dir),
     )
-    expected = pixelate(
-        source,
+    expected_cfg = build_image_config(
         num_colors=8,
         initial_upscale_factor=1,
         pixel_width=4,
         scale_result=1,
         transparent_background=False,
+    )
+    expected_res = pixelate(
+        source,
+        config=expected_cfg,
         intermediate_dir=expected_dir,
     )
+    expected = expected_res.image
     np.testing.assert_array_equal(
         np.asarray(tensor_to_pil(actual)),
         np.asarray(expected),
@@ -148,7 +168,8 @@ def test_invalid_num_colors_propagates():
         "transparent_background": False,
     }
     with pytest.raises(ValueError) as expected:
-        pixelate(source, **kwargs)
+        cfg = build_image_config(**kwargs)
+        pixelate(source, config=cfg)
     with pytest.raises(type(expected.value)) as actual:
         pixelate_image(pil_to_tensor(source), **kwargs)
     assert str(actual.value) == str(expected.value)
@@ -166,7 +187,8 @@ def test_missing_intermediate_dir_propagates(tmp_path):
         "transparent_background": False,
     }
     with pytest.raises(FileNotFoundError) as expected:
-        pixelate(source, intermediate_dir=missing_dir, **kwargs)
+        cfg = build_image_config(**kwargs)
+        pixelate(source, config=cfg, intermediate_dir=missing_dir)
     with pytest.raises(type(expected.value)) as actual:
         pixelate_image(
             pil_to_tensor(source),
@@ -174,3 +196,70 @@ def test_missing_intermediate_dir_propagates(tmp_path):
             **kwargs,
         )
     assert str(actual.value) == str(expected.value)
+
+
+@pytest.mark.parametrize("upscale_factor", [1, 2, 4])
+def test_explicit_pixel_width_consistent_size_with_upscale_factors(upscale_factor):
+    source = pixel_art(4)
+    image = pil_to_tensor(source)
+    pixel_width = 16
+    scale_result = 1
+
+    cfg = build_image_config(
+        num_colors=0,
+        initial_upscale_factor=upscale_factor,
+        pixel_width=pixel_width,
+        scale_result=scale_result,
+        transparent_background=False,
+    )
+    direct_res = pixelate(source, config=cfg)
+    expected_size = (direct_res.image.width, direct_res.image.height)
+
+    actual = pixelate_image(
+        image=image,
+        num_colors=0,
+        initial_upscale_factor=upscale_factor,
+        pixel_width=pixel_width,
+        scale_result=scale_result,
+        transparent_background=False,
+    )
+    actual_size = (actual.shape[2], actual.shape[1])
+
+    assert actual_size == expected_size
+    assert actual_size == (source.width // pixel_width, source.height // pixel_width)
+
+
+def test_mapping_handwritten():
+    base = PixelateConfig(
+        mesh=replace(PixelateConfig().mesh, crop_border_pixels=9),
+    )
+
+    # num_colors=0 -> colors.method="dominant"
+    cfg0 = build_image_config(
+        num_colors=0,
+        initial_upscale_factor=1,
+        pixel_width=0,
+        scale_result=1,
+        transparent_background=False,
+        base_config=base,
+    )
+    assert cfg0.colors.method == "dominant"
+    assert cfg0.mesh.crop_border_pixels == 9
+    assert cfg0.pixel_width is None
+
+    # num_colors=8 -> colors.method="palette" and colors.palette.num_colors=8
+    cfg8 = build_image_config(
+        num_colors=8,
+        initial_upscale_factor=2,
+        pixel_width=16,
+        scale_result=2,
+        transparent_background=True,
+        base_config=base,
+    )
+    assert cfg8.colors.method == "palette"
+    assert cfg8.colors.palette.num_colors == 8
+    assert cfg8.pixel_width == 16
+    assert cfg8.initial_upscale_factor == 2
+    assert cfg8.scale_result == 2
+    assert cfg8.transparent_background is True
+    assert cfg8.mesh.crop_border_pixels == 9

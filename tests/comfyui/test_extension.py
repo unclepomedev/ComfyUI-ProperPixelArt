@@ -8,8 +8,10 @@ import numpy as np
 import pytest
 import torch
 from PIL import Image
+from proper_pixel_art import pixelate
 from proper_pixel_art.config import PixelateConfig
 
+from comfyui_properpixelart.core.convert import tensor_to_pil
 from tests.helpers import (
     MODIFIED_INPUTS,
     config_inputs,
@@ -72,14 +74,18 @@ def test_schema(node_list, node_id):
     defaults = PixelateConfig()
     schema = node_list[node_id].GET_SCHEMA()
     inputs = {widget.id: widget for widget in schema.inputs}
-    for name in (
-        "num_colors",
-        "initial_upscale_factor",
-        "pixel_width",
-        "scale_result",
-        "transparent_background",
-    ):
-        assert inputs[name].default == getattr(defaults, name)
+    assert inputs["num_colors"].default == 0
+    assert inputs["initial_upscale_factor"].default == defaults.initial_upscale_factor
+    assert inputs["pixel_width"].default == (
+        0 if defaults.pixel_width is None else defaults.pixel_width
+    )
+    assert inputs["scale_result"].default == (
+        1 if defaults.scale_result is None else defaults.scale_result
+    )
+    assert inputs["transparent_background"].default == defaults.transparent_background
+    if node_id == "ComfyUI_ProperPixelArt_Video":
+        assert inputs["num_sample_frames"].default == defaults.video.num_sample_frames
+        assert inputs["output_format"].default == defaults.video.output_format
 
 
 def test_config_schema(node_list):
@@ -164,6 +170,32 @@ def test_execute(node_list, image):
     assert_image_output(output)
 
 
+def test_default_execution_matches_upstream_default_config(node_list):
+    node = node_list["ComfyUI_ProperPixelArt_Pixelate"]
+    schema = node.GET_SCHEMA()
+    defaults = {
+        widget.id: widget.default
+        for widget in schema.inputs
+        if hasattr(widget, "default")
+    }
+
+    image_tensor = create_pixel_art_tensor(
+        grid_size=64,
+        image_size=256,
+        seed=123,
+    )
+    source = tensor_to_pil(image_tensor)
+
+    output = node.execute(image=image_tensor, **defaults)
+    assert_image_output(output)
+    actual_pil = tensor_to_pil(output.result[0][0])
+
+    direct_res = pixelate(source, config=PixelateConfig())
+    expected_pil = direct_res.image
+
+    np.testing.assert_array_equal(np.asarray(actual_pil), np.asarray(expected_pil))
+
+
 def test_config_connection(node_list, image):
     inputs = config_inputs(PixelateConfig())
     inputs.update(quantize_method="FASTOCTREE")
@@ -188,8 +220,8 @@ def test_video_schema(node_list):
         assert inputs[name].max == image_inputs[name].max
     assert schema.is_output_node
     assert inputs["input_path"].upload == comfy_api.io.UploadType.video
-    assert inputs["output_format"].options == ["Auto", "mp4", "gif"]
-    assert inputs["output_format"].default == "Auto"
+    assert inputs["output_format"].options == ["gif", "mp4"]
+    assert inputs["output_format"].default == "gif"
     assert inputs["num_sample_frames"].default == 8
     assert inputs["num_sample_frames"].min == 1
     assert inputs["config"].optional
@@ -252,10 +284,11 @@ def test_video_execute(node_list, comfy_directories):
         scale_result=1,
         transparent_background=False,
     )
+    config_args = config_inputs(PixelateConfig()) | MODIFIED_INPUTS
     output = node.execute(
         **main_inputs,
         config=node_list["ComfyUI_ProperPixelArt_Config"]
-        .execute(**MODIFIED_INPUTS)
+        .execute(**config_args)
         .result[0],
     )
     assert isinstance(output, comfy_api.io.NodeOutput)
