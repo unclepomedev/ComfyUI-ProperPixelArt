@@ -44,10 +44,10 @@ class ProperPixelArtVideo(io.ComfyNode):
                 ),
                 io.Int.Input(
                     "num_colors",
-                    default=DEFAULT_CONFIG.num_colors,
+                    default=0,
                     min=0,
                     max=256,
-                    tooltip="Number of colors to quantize the frames to. 0 skips quantization and preserves all colors.",
+                    tooltip="Number of colors to quantize the frames to. 0 keeps dominant colors (preserves all colors), while 1 or more quantizes to that many colors using palette method.",
                 ),
                 io.Int.Input(
                     "initial_upscale_factor",
@@ -58,14 +58,18 @@ class ProperPixelArtVideo(io.ComfyNode):
                 ),
                 io.Int.Input(
                     "pixel_width",
-                    default=DEFAULT_CONFIG.pixel_width,
+                    default=0
+                    if DEFAULT_CONFIG.pixel_width is None
+                    else DEFAULT_CONFIG.pixel_width,
                     min=0,
                     max=256,
                     tooltip="Width of pixels in the input frames. 0 auto-detects pixel width.",
                 ),
                 io.Int.Input(
                     "scale_result",
-                    default=DEFAULT_CONFIG.scale_result,
+                    default=1
+                    if DEFAULT_CONFIG.scale_result is None
+                    else DEFAULT_CONFIG.scale_result,
                     min=1,
                     max=20,
                     tooltip="Width of pixels in the output animation. 1 means no scaling.",
@@ -83,9 +87,9 @@ class ProperPixelArtVideo(io.ComfyNode):
                 ),
                 io.Combo.Input(
                     "output_format",
-                    options=["Auto", "mp4", "gif"],
-                    default="Auto",
-                    tooltip="Output container format. Auto infers the format from the input extension (mp4 for non-GIF inputs).",
+                    options=["gif", "mp4"],
+                    default=DEFAULT_CONFIG.video.output_format,
+                    tooltip="Output container format for the video/GIF pipeline.",
                 ),
                 PixelateConfigType.Input(
                     "config",
@@ -118,7 +122,7 @@ class ProperPixelArtVideo(io.ComfyNode):
         scale_result: int,
         transparent_background: bool,
         num_sample_frames: int = 8,
-        output_format: str = "Auto",
+        output_format: str = "gif",
         config: PixelateConfig | None = None,
         intermediate_dir: str = "",
     ) -> io.NodeOutput:

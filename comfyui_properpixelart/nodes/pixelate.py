@@ -25,10 +25,10 @@ class ProperPixelArt(io.ComfyNode):
                 ),
                 io.Int.Input(
                     "num_colors",
-                    default=DEFAULT_CONFIG.num_colors,
+                    default=0,
                     min=0,
                     max=256,
-                    tooltip="Number of colors to quantize the image to. 0 skips quantization and preserves all colors.",
+                    tooltip="Number of colors to quantize the image to. 0 keeps dominant colors (preserves all colors), while 1 or more quantizes to that many colors using palette method.",
                 ),
                 io.Int.Input(
                     "initial_upscale_factor",
@@ -39,14 +39,18 @@ class ProperPixelArt(io.ComfyNode):
                 ),
                 io.Int.Input(
                     "pixel_width",
-                    default=DEFAULT_CONFIG.pixel_width,
+                    default=0
+                    if DEFAULT_CONFIG.pixel_width is None
+                    else DEFAULT_CONFIG.pixel_width,
                     min=0,
                     max=256,
                     tooltip="Width of pixels in the input image. 0 auto-detects pixel width.",
                 ),
                 io.Int.Input(
                     "scale_result",
-                    default=DEFAULT_CONFIG.scale_result,
+                    default=1
+                    if DEFAULT_CONFIG.scale_result is None
+                    else DEFAULT_CONFIG.scale_result,
                     min=1,
                     max=20,
                     tooltip="Width of pixels in the output image. 1 means no scaling.",

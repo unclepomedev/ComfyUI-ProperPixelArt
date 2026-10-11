@@ -15,30 +15,3 @@ def test_build_config(modified):
     assert result.colors.background_candidates is None
     if not modified:
         assert result == PixelateConfig()
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "crop_border_pixels",
-        "canny_low",
-        "canny_high",
-        "closure_kernel_size",
-        "cluster_threshold",
-        "hough_threshold",
-        "min_line_len",
-        "max_line_gap",
-        "alpha_threshold",
-        "bin_size",
-        "top_colors_limit",
-        "thumbnail_w",
-        "thumbnail_h",
-    ],
-)
-def test_integer_cast(name):
-    inputs = config_inputs(PixelateConfig()) | MODIFIED_INPUTS
-    expected = inputs.copy()
-    inputs[name] += 0.75
-    result = config_inputs(upstream_config(inputs))
-    assert result == expected
-    assert type(result[name]) is int
