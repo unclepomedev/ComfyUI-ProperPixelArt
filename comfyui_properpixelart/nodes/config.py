@@ -222,7 +222,7 @@ class ProperPixelArtConfig(io.ComfyNode):
                 io.Int.Input(
                     "top_colors_limit",
                     default=colors.top_colors_limit,
-                    min=1,
+                    min=1,  # this is from the Web UI
                     tooltip="Number of common opaque colors sampled when picking a background color.",
                 ),
                 io.Int.Input(
