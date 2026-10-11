@@ -10,7 +10,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "proper-pixel-art>=1.7.2,<2.0.0",
+    "proper-pixel-art>=2.0.0,<2.1.0",
 ]
 
 [project.urls]
